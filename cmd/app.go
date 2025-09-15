@@ -14,7 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func InitializeApp() (*gin.Engine, error) {
+// initializeAppManual wires dependencies manually. It is used by the wire-generated code.
+func initializeAppManual() (*gin.Engine, error) {
 	ctx := context.Background()
 	// Load configuration
 	cfg := config.Load()

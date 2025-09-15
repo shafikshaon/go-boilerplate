@@ -1,0 +1,62 @@
+name: Template cleanup
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  cleanup:
+    # Only run in repositories created from this template (not in the template itself)
+    if: ${{ !github.event.repository.is_template }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute module path
+        id: vars
+        run: |
+          echo "REPO=${GITHUB_REPOSITORY}" >> $GITHUB_OUTPUT
+          echo "MODULE=github.com/${GITHUB_REPOSITORY}" >> $GITHUB_OUTPUT
+
+      - name: Replace module path in go.mod
+        run: |
+          if [ -f go.mod ]; then
+            # Update the module declaration
+            sed -i "s|^module .*|module ${{ steps.vars.outputs.MODULE }}|g" go.mod
+          fi
+
+      - name: Replace import paths in Go files
+        shell: bash
+        run: |
+          # Replace occurrences of the old module path in .go files
+          matches=$(grep -rl --include='*.go' 'go-boilerplate' . || true)
+          if [ -n "$matches" ]; then
+            echo "$matches" | xargs -r sed -i "s|go-boilerplate|${{ steps.vars.outputs.MODULE }}|g"
+          fi
+
+      - name: Update README references (best effort)
+        run: |
+          if [ -f README.md ]; then
+            sed -i "s|go-boilerplate|${{ github.event.repository.name }}|g" README.md || true
+          fi
+
+      - name: Remove this workflow (self-destruct)
+        run: |
+          git rm -f .github/workflows/template-cleanup.yml || true
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: template cleanup - set module path to ${{ steps.vars.outputs.MODULE }}"
+            git push
+          else
+            echo "No changes to commit."
+          fi
